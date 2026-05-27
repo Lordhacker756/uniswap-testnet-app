@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ethers } from 'ethers'
 import { TOKENS, ADDRESSES, FEE_TIERS } from '../constants/addresses'
-import { ERC20_ABI, WETH_ABI, SWAP_ROUTER_ABI, QUOTER_V2_ABI } from '../constants/abis'
+import { ERC20_ABI, WETH_ABI, SWAP_ROUTER_ABI, QUOTER_V2_ABI, FACTORY_ABI } from '../constants/abis'
 
 export function SwapForm({ signer, provider, account }) {
   const [tokenIn, setTokenIn] = useState(TOKENS[0])   // ETH
@@ -17,6 +17,7 @@ export function SwapForm({ signer, provider, account }) {
   const [tokenInBalance, setTokenInBalance] = useState('')
   const [error, setError] = useState('')
   const [txHash, setTxHash] = useState('')
+  const [poolsWithLiquidity, setPoolsWithLiquidity] = useState(new Set())
 
   // Wrap / Unwrap section
   const [wrapAmount, setWrapAmount] = useState('')
@@ -43,6 +44,33 @@ export function SwapForm({ signer, provider, account }) {
     }
     fetch()
   }, [account, provider, tokenIn, txHash])
+
+  // Detect which fee tiers have pools with liquidity
+  useEffect(() => {
+    if (!provider) return
+    const check = async () => {
+      const factory = new ethers.Contract(ADDRESSES.FACTORY, FACTORY_ABI, provider)
+      const tIn = tokenIn.isNative ? ADDRESSES.WETH9 : tokenIn.address
+      const tOut = tokenOut.isNative ? ADDRESSES.WETH9 : tokenOut.address
+      const results = await Promise.all(
+        FEE_TIERS.map(async ({ value }) => {
+          try {
+            const pool = await factory.getPool(tIn, tOut, value)
+            if (pool === ethers.ZeroAddress) return null
+            const poolContract = new ethers.Contract(pool, ['function liquidity() view returns (uint128)'], provider)
+            const liq = await poolContract.liquidity()
+            return liq > 0n ? value : null
+          } catch { return null }
+        })
+      )
+      const available = new Set(results.filter(v => v !== null))
+      setPoolsWithLiquidity(available)
+      if (available.size > 0 && !available.has(feeTier)) {
+        setFeeTier([...available][0])
+      }
+    }
+    check()
+  }, [provider, tokenIn, tokenOut])
 
   // Check approval for ERC20 input
   useEffect(() => {
@@ -229,7 +257,12 @@ export function SwapForm({ signer, provider, account }) {
             <label>Fee Tier</label>
             <div className="fee-tier-buttons">
               {FEE_TIERS.map(f => (
-                <button key={f.value} className={`fee-btn ${feeTier === f.value ? 'active' : ''}`} onClick={() => setFeeTier(f.value)}>
+                <button
+                  key={f.value}
+                  className={`fee-btn ${feeTier === f.value ? 'active' : ''} ${poolsWithLiquidity.size > 0 && !poolsWithLiquidity.has(f.value) ? 'no-pool' : ''}`}
+                  onClick={() => setFeeTier(f.value)}
+                  title={poolsWithLiquidity.size > 0 && !poolsWithLiquidity.has(f.value) ? 'No liquidity in this pool' : ''}
+                >
                   {f.label}
                 </button>
               ))}
