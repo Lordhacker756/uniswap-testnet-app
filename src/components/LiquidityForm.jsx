@@ -301,17 +301,41 @@ export function LiquidityForm({ signer, provider, account }) {
           <div className="input-group">
             <div className="input-label-row">
               <label>{token0.symbol} Amount</label>
-              {balances.t0 && <span className="balance">Balance: {parseFloat(balances.t0).toFixed(6)}</span>}
+              {balances.t0 && <span className="balance" onClick={() => {
+                const v = parseFloat(balances.t0).toString()
+                setAmount0(v)
+                if (currentPrice) setAmount1((parseFloat(v) / currentPrice).toFixed(8))
+              }}>Balance: {parseFloat(balances.t0).toFixed(6)}</span>}
             </div>
-            <input type="number" placeholder="0.0" value={amount0} min="0" onChange={e => setAmount0(e.target.value)} />
+            <input type="number" placeholder="0.0" value={amount0} min="0" onChange={e => {
+              const v = e.target.value
+              setAmount0(v)
+              if (currentPrice && v && parseFloat(v) > 0) {
+                setAmount1((parseFloat(v) / currentPrice).toFixed(8))
+              } else {
+                setAmount1('')
+              }
+            }} />
           </div>
 
           <div className="input-group">
             <div className="input-label-row">
               <label>{token1.symbol} Amount</label>
-              {balances.t1 && <span className="balance">Balance: {parseFloat(balances.t1).toFixed(6)}</span>}
+              {balances.t1 && <span className="balance" onClick={() => {
+                const v = parseFloat(balances.t1).toString()
+                setAmount1(v)
+                if (currentPrice) setAmount0((parseFloat(v) * currentPrice).toFixed(6))
+              }}>Balance: {parseFloat(balances.t1).toFixed(6)}</span>}
             </div>
-            <input type="number" placeholder="0.0" value={amount1} min="0" onChange={e => setAmount1(e.target.value)} />
+            <input type="number" placeholder="0.0" value={amount1} min="0" onChange={e => {
+              const v = e.target.value
+              setAmount1(v)
+              if (currentPrice && v && parseFloat(v) > 0) {
+                setAmount0((parseFloat(v) * currentPrice).toFixed(6))
+              } else {
+                setAmount0('')
+              }
+            }} />
           </div>
 
           {error && <div className="msg-error">{error}</div>}
